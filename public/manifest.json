@@ -1,0 +1,15 @@
+{
+  "short_name": "Twosome",
+  "name": "Twosome — Shared Expenses",
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#0f0e0c",
+  "background_color": "#0f0e0c",
+  "icons": [
+    {
+      "src": "favicon.ico",
+      "sizes": "64x64",
+      "type": "image/x-icon"
+    }
+  ]
+}
