@@ -314,3 +314,96 @@ export default function App() {
         </div>
         <button onClick={handleAuth} style={{ ...S.addBtn, opacity: 1 }}>{authMode === "login" ? "Sign In" : "Sign Up"}</button>
         <div style={S
+{view === "add" && (
+          <div className="slideup">
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+              <div style={S.sectionLabel}>{editingId ? "Edit Expense" : "New Expense"}</div>
+              {editingId && (
+                <button className="ab" onClick={() => { setEditingId(null); setForm(EMPTY_FORM(p1)); setView("balance"); }}
+                  style={{ background: "transparent", border: "none", color: T.muted, fontSize: 13, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>
+                  Cancel
+                </button>
+              )}
+            </div>
+
+            <div style={S.formGroup}>
+              <label style={S.formLabel}>Description</label>
+              <input ref={inputRef} style={S.input} placeholder="e.g. Dinner at Zuni" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+            </div>
+            <div style={S.formGroup}>
+              <label style={S.formLabel}>Amount</label>
+              <input style={{ ...S.input, fontSize: 22, fontFamily: "'Playfair Display', serif" }} placeholder="$0.00" type="number" min="0" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
+            </div>
+            <div style={S.formGroup}>
+              <label style={S.formLabel}>Notes (optional)</label>
+              <textarea style={{ ...S.input, resize: "none", height: 72, lineHeight: 1.5 }} placeholder="Any extra details..." value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+            </div>
+            <div style={S.formGroup}>
+              <label style={S.formLabel}>Category</label>
+              <div style={S.catGrid}>
+                {CATEGORIES.map((c) => (
+                  <button key={c.label} className="ab" onClick={() => setForm({ ...form, category: c.label })}
+                    style={{ ...S.catBtn, ...(form.category === c.label ? S.catBtnActive : {}) }}>
+                    <span style={{ fontSize: 18 }}>{c.icon}</span>
+                    <span style={{ fontSize: 11, marginTop: 3 }}>{c.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div style={S.formGroup}>
+              <label style={S.formLabel}>Paid by</label>
+              <div style={S.toggleRow}>
+                {[p1, p2].map((name) => (
+                  <button key={name} className="ab" onClick={() => setForm({ ...form, paidBy: name })}
+                    style={{ ...S.toggleBtn, ...(form.paidBy === name ? S.toggleBtnActive : {}) }}>
+                    {name}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div style={S.formGroup}>
+              <label style={S.formLabel}>Split</label>
+              <div style={S.toggleRow}>
+                {[{ value: "equal", label: "50 / 50" }, { value: "full-p1", label: `${p1}'s` }, { value: "full-p2", label: `${p2}'s` }].map((sp) => (
+                  <button key={sp.value} className="ab" onClick={() => setForm({ ...form, split: sp.value })}
+                    style={{ ...S.toggleBtn, ...(form.split === sp.value ? S.toggleBtnActive : {}) }}>
+                    {sp.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <button className="ab" onClick={saveExpense} style={{ ...S.addBtn, opacity: form.description && form.amount ? 1 : 0.4 }}>
+              {editingId ? "Save Changes" : "Add Expense"}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ExpenseRow({ expense: e, onDelete, onEdit, catIcon, showDate, p1, p2, S, T }) {
+  const [expanded, setExpanded] = useState(false);
+  const splitLabel = e.split === "equal" ? "split equally" : e.split === "full-p1" ? `${p1}'s expense` : `${p2}'s expense`;
+  return (
+    <div className="er" style={S.expenseRow} onClick={() => e.notes && setExpanded(!expanded)}>
+      <div style={{ fontSize: 22, width: 36, textAlign: "center", paddingTop: 1 }}>{catIcon(e.category)}</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={S.expenseDesc}>{e.description}</div>
+        <div style={S.expenseMeta}>{e.paid_by} paid · {splitLabel}{showDate && ` · ${formatDate(e.created_at)}`}</div>
+        {expanded && e.notes && <div style={S.expenseNotes} className="fadein">{e.notes}</div>}
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <div style={{ textAlign: "right" }}>
+          <div style={S.expenseAmount}>{formatCurrency(e.amount)}</div>
+          {!showDate && <div style={{ fontSize: 10, color: T.muted, marginTop: 2 }}>{formatDate(e.created_at)}</div>}
+          {e.notes && <div style={{ fontSize: 9, color: T.muted, marginTop: 1 }}>📝</div>}
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <button className="ib ab" onClick={(ev) => { ev.stopPropagation(); onEdit(e); }} style={S.editBtn}>✏️</button>
+          <button className="ib ab" onClick={(ev) => { ev.stopPropagation(); onDelete(e.id); }} style={S.deleteBtn}>×</button>
+        </div>
+      </div>
+    </div>
+  );
+}
