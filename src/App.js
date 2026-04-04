@@ -51,6 +51,7 @@ export default function App() {
   const [adminTab,      setAdminTab]      = useState("pending");
   const [adminData,     setAdminData]     = useState({ pending:[], users:[], households:[], members:[], expenses:[] });
   const [selectedHousehold, setSelectedHousehold] = useState({});
+  const [newHouseholdName, setNewHouseholdName] = useState("");
   const inputRef = useRef(null);
 
   const T = THEMES[settings.theme] || THEMES.dark;
@@ -232,6 +233,14 @@ export default function App() {
     await supabase.from("household_members").delete().eq("household_id", id);
     await supabase.from("households").delete().eq("id", id);
     await loadAdminData(); showToast("Household deleted");
+  };
+
+  const adminCreateHousehold = async (name) => {
+    if (!name.trim()) return;
+    const { data: hh, error: e1 } = await supabase.from("households").insert({ name: name.trim(), created_by: session.user.id }).select().single();
+    if (e1) { showToast("Error: " + e1.message); return; }
+    await supabase.from("household_settings").insert({ household_id: hh.id });
+    await loadAdminData(); showToast("Household created: " + hh.name);
   };
 
   const catIcon = (label) => { const c = CATEGORIES.find((x) => x.label === label); return c ? c.icon : "?"; };
@@ -489,30 +498,36 @@ export default function App() {
           <div className="slideup">
             <div style={{...S.sectionLabel, marginBottom:16}}>All Users ({adminData.users.length})</div>
             {adminData.users.map((u) => {
-              const membership = adminData.members.find((m) => m.user_id === u.user_id);
-              const memberHousehold = membership ? adminData.households.find((h) => h.id === membership.household_id) : null;
+              const memberships = adminData.members.filter((m) => m.user_id === u.user_id);
+              const memberHouseholds = memberships.map((m) => adminData.households.find((h) => h.id === m.household_id)).filter(Boolean);
+              const availableHouseholds = adminData.households.filter((h) => !memberships.find((m) => m.household_id === h.id));
               return (
                 <div key={u.id} style={S.adminCard}>
                   <div style={S.adminName}>{u.full_name || u.email}</div>
                   <div style={S.adminMeta}>
                     {u.email}<br/>
                     {u.location && <span>Location: {u.location}<br/></span>}
-                    Status: {u.status} | Joined: {formatDate(u.created_at)}<br/>
-                    Household: {memberHousehold ? memberHousehold.name : "None"}
+                    Status: {u.status} | Joined: {formatDate(u.created_at)}
                   </div>
-                  <div style={{marginTop:12, display:"flex", gap:8, flexWrap:"wrap", alignItems:"center"}}>
-                    {membership ? (
-                      <button className="ab" onClick={() => adminRemoveFromHousehold(u.user_id, membership.household_id)} style={S.denyBtn}>Remove from household</button>
-                    ) : (
-                      <div style={{display:"flex", gap:8, alignItems:"center", flex:1}}>
+                  <div style={{marginTop:10}}>
+                    <div style={{fontSize:11, color:T.muted, marginBottom:6, textTransform:"uppercase", letterSpacing:"0.08em"}}>Households</div>
+                    {memberHouseholds.length === 0 && <div style={{fontSize:12, color:T.muted, marginBottom:8}}>Not in any household</div>}
+                    {memberHouseholds.map((h) => (
+                      <div key={h.id} style={{display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6}}>
+                        <span style={{fontSize:13, color:T.text}}>{h.name}</span>
+                        <button className="ab" onClick={() => adminRemoveFromHousehold(u.user_id, h.id)} style={{...S.denyBtn, fontSize:11, padding:"4px 10px"}}>Remove</button>
+                      </div>
+                    ))}
+                    {availableHouseholds.length > 0 && (
+                      <div style={{display:"flex", gap:8, alignItems:"center", marginTop:8}}>
                         <select
                           value={selectedHousehold[u.user_id] || ""}
                           onChange={(e) => setSelectedHousehold({...selectedHousehold, [u.user_id]: e.target.value})}
                           style={{...S.input, padding:"6px 10px", fontSize:12, flex:1}}>
-                          <option value="">Select household...</option>
-                          {adminData.households.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
+                          <option value="">Add to household...</option>
+                          {availableHouseholds.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
                         </select>
-                        <button className="ab" onClick={() => adminAddToHousehold(u.user_id, u.full_name || u.email, selectedHousehold[u.user_id])} style={S.approveBtn}>Add</button>
+                        <button className="ab" onClick={() => { adminAddToHousehold(u.user_id, u.full_name || u.email, selectedHousehold[u.user_id]); setSelectedHousehold({...selectedHousehold, [u.user_id]: ""}); }} style={{...S.approveBtn, padding:"6px 14px"}}>Add</button>
                       </div>
                     )}
                   </div>
@@ -524,6 +539,20 @@ export default function App() {
         {adminTab === "households" && (
           <div className="slideup">
             <div style={{...S.sectionLabel, marginBottom:16}}>All Households ({adminData.households.length})</div>
+            <div style={{...S.adminCard, marginBottom:20}}>
+              <div style={{...S.adminName, marginBottom:10}}>Create New Household</div>
+              <div style={{display:"flex", gap:8}}>
+                <input
+                  style={{...S.input, padding:"8px 12px", fontSize:13, flex:1}}
+                  placeholder="Household name..."
+                  value={newHouseholdName}
+                  onChange={(e) => setNewHouseholdName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { adminCreateHousehold(newHouseholdName); setNewHouseholdName(""); }}}
+                />
+                <button className="ab" onClick={() => { adminCreateHousehold(newHouseholdName); setNewHouseholdName(""); }}
+                  style={{...S.approveBtn, padding:"8px 16px"}}>Create</button>
+              </div>
+            </div>
             {adminData.households.map((hh) => {
               const hhMembers = adminData.members.filter((m) => m.household_id === hh.id);
               return (
