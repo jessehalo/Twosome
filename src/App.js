@@ -49,7 +49,8 @@ export default function App() {
   const [userRequest,   setUserRequest]   = useState(null);
   const [showAdmin,     setShowAdmin]     = useState(false);
   const [adminTab,      setAdminTab]      = useState("pending");
-  const [adminData,     setAdminData]     = useState({ pending:[], users:[], households:[], expenses:[] });
+  const [adminData,     setAdminData]     = useState({ pending:[], users:[], households:[], members:[], expenses:[] });
+  const [selectedHousehold, setSelectedHousehold] = useState({});
   const inputRef = useRef(null);
 
   const T = THEMES[settings.theme] || THEMES.dark;
@@ -197,8 +198,21 @@ export default function App() {
     const { data: pending }     = await supabase.from("user_requests").select("*").eq("status","pending").order("created_at",{ascending:true});
     const { data: users }       = await supabase.from("user_requests").select("*").neq("status","pending").order("created_at",{ascending:false});
     const { data: households }  = await supabase.from("households").select("*").order("created_at",{ascending:false});
+    const { data: members }     = await supabase.from("household_members").select("*").order("joined_at",{ascending:false});
     const { data: exps }        = await supabase.from("expenses").select("*").order("created_at",{ascending:false}).limit(200);
-    setAdminData({ pending: pending||[], users: users||[], households: households||[], expenses: exps||[] });
+    setAdminData({ pending: pending||[], users: users||[], households: households||[], members: members||[], expenses: exps||[] });
+  };
+
+  const adminAddToHousehold = async (userId, displayName, householdId) => {
+    if (!householdId) return;
+    const { error } = await supabase.from("household_members").insert({ household_id: householdId, user_id: userId, display_name: displayName });
+    if (error) { showToast("Error: " + error.message); return; }
+    await loadAdminData(); showToast("User added to household");
+  };
+
+  const adminRemoveFromHousehold = async (userId, householdId) => {
+    await supabase.from("household_members").delete().eq("user_id", userId).eq("household_id", householdId);
+    await loadAdminData(); showToast("User removed from household");
   };
 
   const approveUser = async (req) => {
@@ -474,33 +488,63 @@ export default function App() {
         {adminTab === "users" && (
           <div className="slideup">
             <div style={{...S.sectionLabel, marginBottom:16}}>All Users ({adminData.users.length})</div>
-            {adminData.users.map((u) => (
-              <div key={u.id} style={S.adminCard}>
-                <div style={S.adminName}>{u.full_name || u.email}</div>
-                <div style={S.adminMeta}>
-                  {u.email}<br/>
-                  {u.location && "Location: "+u.location}<br/>
-                  Status: {u.status} | Joined: {formatDate(u.created_at)}
+            {adminData.users.map((u) => {
+              const membership = adminData.members.find((m) => m.user_id === u.user_id);
+              const memberHousehold = membership ? adminData.households.find((h) => h.id === membership.household_id) : null;
+              return (
+                <div key={u.id} style={S.adminCard}>
+                  <div style={S.adminName}>{u.full_name || u.email}</div>
+                  <div style={S.adminMeta}>
+                    {u.email}<br/>
+                    {u.location && <span>Location: {u.location}<br/></span>}
+                    Status: {u.status} | Joined: {formatDate(u.created_at)}<br/>
+                    Household: {memberHousehold ? memberHousehold.name : "None"}
+                  </div>
+                  <div style={{marginTop:12, display:"flex", gap:8, flexWrap:"wrap", alignItems:"center"}}>
+                    {membership ? (
+                      <button className="ab" onClick={() => adminRemoveFromHousehold(u.user_id, membership.household_id)} style={S.denyBtn}>Remove from household</button>
+                    ) : (
+                      <div style={{display:"flex", gap:8, alignItems:"center", flex:1}}>
+                        <select
+                          value={selectedHousehold[u.user_id] || ""}
+                          onChange={(e) => setSelectedHousehold({...selectedHousehold, [u.user_id]: e.target.value})}
+                          style={{...S.input, padding:"6px 10px", fontSize:12, flex:1}}>
+                          <option value="">Select household...</option>
+                          {adminData.households.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
+                        </select>
+                        <button className="ab" onClick={() => adminAddToHousehold(u.user_id, u.full_name || u.email, selectedHousehold[u.user_id])} style={S.approveBtn}>Add</button>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
         {adminTab === "households" && (
           <div className="slideup">
             <div style={{...S.sectionLabel, marginBottom:16}}>All Households ({adminData.households.length})</div>
-            {adminData.households.map((hh) => (
-              <div key={hh.id} style={S.adminCard}>
-                <div style={S.adminName}>{hh.name}</div>
-                <div style={S.adminMeta}>
-                  Invite code: {hh.invite_code}<br/>
-                  Created: {formatDate(hh.created_at)}
+            {adminData.households.map((hh) => {
+              const hhMembers = adminData.members.filter((m) => m.household_id === hh.id);
+              return (
+                <div key={hh.id} style={S.adminCard}>
+                  <div style={S.adminName}>{hh.name}</div>
+                  <div style={S.adminMeta}>
+                    Invite code: {hh.invite_code}<br/>
+                    Created: {formatDate(hh.created_at)}<br/>
+                    Members ({hhMembers.length}): {hhMembers.map((m) => m.display_name).join(", ") || "None"}
+                  </div>
+                  <div style={{marginTop:12, display:"flex", gap:8, flexWrap:"wrap"}}>
+                    {hhMembers.map((m) => (
+                      <button key={m.id} className="ab" onClick={() => adminRemoveFromHousehold(m.user_id, hh.id)} style={{...S.denyBtn, fontSize:11}}>
+                        Remove {m.display_name}
+                      </button>
+                    ))}
+                    <button className="ab" onClick={() => { if(window.confirm("Delete "+hh.name+"?")) adminDeleteHousehold(hh.id); }} style={S.denyBtn}>Delete household</button>
+                  </div>
                 </div>
-                <div style={{marginTop:12}}>
-                  <button className="ab" onClick={() => { if(window.confirm("Delete "+hh.name+"?")) adminDeleteHousehold(hh.id); }} style={S.denyBtn}>Delete</button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
         {adminTab === "expenses" && (
