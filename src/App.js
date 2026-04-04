@@ -459,9 +459,8 @@ export default function App() {
                 <div style={S.adminName}>{req.full_name || req.email}</div>
                 <div style={S.adminMeta}>
                   {req.email}<br/>
-                  {req.location && "Location: "+req.location+"
-"}
-                  {req.message && "Message: "+req.message}<br/>
+                   {req.location && <span>{"Location: "+req.location}<br/></span>}
+                  {req.message && <span>{"Message: "+req.message}<br/></span>}
                   Requested: {formatDate(req.created_at)}
                 </div>
                 <div style={{marginTop:12}}>
